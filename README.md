@@ -1,6 +1,6 @@
 # raft-sim
 
-Simplified Raft consensus simulation.
+Raft consensus algorithm simulation.
 
 Zero dependencies. Python 3.8+.
 
