@@ -1,6 +1,6 @@
 # raft-sim
 
-Raft consensus protocol simulator with leader election, log replication, and term management
+Raft Consensus Simulation. Zero-dependency, single-file Python CLI.
 
 ## Usage
 
@@ -8,7 +8,6 @@ Raft consensus protocol simulator with leader election, log replication, and ter
 python3 raft_sim.py --help
 ```
 
-## Features
+## License
 
-- Zero dependencies (Python 3.8+ stdlib only)
-- Single file implementation
+MIT
