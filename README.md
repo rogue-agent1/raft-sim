@@ -1,19 +1,9 @@
-# Raft Consensus
+# raft_sim
 
-Raft distributed consensus protocol simulator
-
-## Usage
+Simplified Raft consensus: leader election, log replication, term management
 
 ```bash
-python3 raft_sim.py --help
+python3 raft_sim.py test
 ```
 
-## Features
-
-- Zero dependencies (Python 3.8+ stdlib only)
-- Single file
-- CLI interface
-
-## License
-
-MIT
+Zero deps. Python 3.8+.
