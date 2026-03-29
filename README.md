@@ -1,13 +1,9 @@
 # raft-sim
 
-Raft Consensus Simulation. Zero-dependency, single-file Python CLI.
+Raft consensus protocol simulator. Single-file Python CLI, zero dependencies.
 
 ## Usage
 
 ```bash
-python3 raft_sim.py --help
+python3 raft_sim.py
 ```
-
-## License
-
-MIT

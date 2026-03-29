@@ -1,70 +1,77 @@
 #!/usr/bin/env python3
-"""Raft Consensus - Simulate leader election and log replication."""
-import sys, random
+"""Raft consensus — leader election and log replication simulator."""
+import random, sys, enum
 
-class Node:
-    def __init__(self, id):
-        self.id=id;self.term=0;self.state="follower";self.voted_for=None
-        self.log=[];self.commit_idx=0;self.timeout=random.randint(150,300)
-        self.votes=0;self.leader=None
-    def __repr__(self): return f"Node({self.id}, {self.state}, term={self.term})"
+class State(enum.Enum):
+    FOLLOWER = "follower"
+    CANDIDATE = "candidate"
+    LEADER = "leader"
 
-class RaftSim:
-    def __init__(self, n=5):
-        self.nodes=[Node(i) for i in range(n)];self.tick=0;self.messages=[]
-    def step(self):
-        self.tick += 1
-        for node in self.nodes:
-            if node.state == "leader": self._heartbeat(node)
-            else:
-                node.timeout -= 1
-                if node.timeout <= 0: self._start_election(node)
-        self._process_messages()
-    def _start_election(self, node):
-        node.term += 1; node.state = "candidate"; node.voted_for = node.id; node.votes = 1
-        node.timeout = random.randint(150, 300)
-        for other in self.nodes:
-            if other.id != node.id:
-                self.messages.append(("vote_req", node.id, other.id, node.term))
-    def _heartbeat(self, leader):
-        for node in self.nodes:
-            if node.id != leader.id:
-                node.timeout = random.randint(150, 300)
-                node.leader = leader.id
-    def _process_messages(self):
-        msgs = self.messages[:]; self.messages = []
-        for msg_type, src, dst, term in msgs:
-            dst_node = self.nodes[dst]
-            if msg_type == "vote_req":
-                if term > dst_node.term and dst_node.voted_for in (None, src):
-                    dst_node.term = term; dst_node.voted_for = src; dst_node.state = "follower"
-                    self.messages.append(("vote_resp", dst, src, term))
-            elif msg_type == "vote_resp":
-                src_node = self.nodes[dst]
-                if src_node.state == "candidate" and term == src_node.term:
-                    src_node.votes += 1
-                    if src_node.votes > len(self.nodes) // 2:
-                        src_node.state = "leader"; src_node.leader = src_node.id
-                        self._heartbeat(src_node)
+class RaftNode:
+    def __init__(self, nid, cluster_size):
+        self.id = nid
+        self.cluster_size = cluster_size
+        self.state = State.FOLLOWER
+        self.term = 0
+        self.voted_for = None
+        self.log = []
+        self.commit_index = -1
+        self.timeout = random.randint(150, 300)
+        self.votes = 0
+    def start_election(self):
+        self.state = State.CANDIDATE
+        self.term += 1
+        self.voted_for = self.id
+        self.votes = 1
+    def receive_vote(self):
+        self.votes += 1
+        if self.votes > self.cluster_size // 2:
+            self.state = State.LEADER
+            return True
+        return False
+    def append_entry(self, entry):
+        self.log.append((self.term, entry))
+        return len(self.log) - 1
+    def __repr__(self):
+        return f"Node({self.id}, {self.state.value}, term={self.term}, log={len(self.log)})"
 
-def main():
-    random.seed(42)
-    sim = RaftSim(5)
-    print("=== Raft Consensus Simulation ===\n")
-    for _ in range(500): sim.step()
-    leaders = [n for n in sim.nodes if n.state == "leader"]
-    print(f"After 500 ticks:")
-    for n in sim.nodes:
-        print(f"  {n}, leader={n.leader}")
-    if leaders:
-        print(f"\nLeader: Node {leaders[0].id} (term {leaders[0].term})")
-    sim.nodes[leaders[0].id if leaders else 0].state = "down"
-    print(f"\nKilling leader...")
-    for _ in range(500): sim.step()
-    leaders2 = [n for n in sim.nodes if n.state == "leader"]
-    if leaders2:
-        print(f"New leader: Node {leaders2[0].id} (term {leaders2[0].term})")
-    for n in sim.nodes: print(f"  {n}")
+def simulate(n=5, rounds=20):
+    nodes = [RaftNode(i, n) for i in range(n)]
+    print(f"Raft cluster: {n} nodes, {rounds} rounds\n")
+    for r in range(rounds):
+        # Random timeout triggers election
+        if all(n.state != State.LEADER for n in nodes):
+            candidate = random.choice(nodes)
+            candidate.start_election()
+            print(f"Round {r}: Node {candidate.id} starts election (term {candidate.term})")
+            for node in nodes:
+                if node.id != candidate.id and node.term <= candidate.term:
+                    if node.voted_for is None or node.voted_for == candidate.id:
+                        node.voted_for = candidate.id
+                        node.term = candidate.term
+                        if candidate.receive_vote():
+                            print(f"  Node {candidate.id} elected leader!")
+                            break
+        else:
+            leader = next(n for n in nodes if n.state == State.LEADER)
+            entry = f"cmd-{r}"
+            idx = leader.append_entry(entry)
+            acks = 1
+            for node in nodes:
+                if node.id != leader.id and random.random() > 0.1:
+                    node.log.append((leader.term, entry))
+                    node.term = leader.term
+                    acks += 1
+            if acks > n // 2:
+                leader.commit_index = idx
+                print(f"Round {r}: Leader {leader.id} committed '{entry}' (acks={acks})")
+            if random.random() < 0.05:
+                print(f"Round {r}: Leader {leader.id} crashed!")
+                leader.state = State.FOLLOWER
+                leader.voted_for = None
+                for node in nodes: node.voted_for = None
+    print(f"\nFinal state:")
+    for node in nodes: print(f"  {node}")
 
 if __name__ == "__main__":
-    main()
+    simulate(int(sys.argv[1]) if len(sys.argv) > 1 else 5)
